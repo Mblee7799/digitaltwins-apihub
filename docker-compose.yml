@@ -1,0 +1,9 @@
+services:
+  hub:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./tools:/app/tools
+    environment:
+      - GEOHUB_DEBUG=true
