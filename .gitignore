@@ -7,6 +7,9 @@ dist/
 .pytest_cache/
 .env
 
+# Local
+intern-projects/
+
 # Frontend
 node_modules/
 playground/dist/

@@ -17,7 +17,7 @@ def test_health(client):
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "ok"
-    assert data["tools_loaded"] >= 3
+    assert data["tools_loaded"] >= 4
 
 
 def test_list_tools(client):
@@ -173,6 +173,77 @@ def test_manifest_has_ui_hints(client):
     # Check chaining tags
     assert "polygon" in manifest["output_tags"]
     assert "analysis" in manifest["output_tags"]
+
+
+def test_run_env_check_metrics_only(client):
+    """Test a tool that returns metrics + tables but no geometry."""
+    r = client.post(
+        "/api/v1/tools/env-check/run",
+        json={
+            "parameters": {"latitude": 34.0522, "longitude": -118.2437},
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+
+    # Execution envelope
+    assert data["execution"]["tool_id"] == "env-check"
+    assert data["execution"]["status"] == "success"
+    assert data["execution"]["feature_count"] == 0  # no geometry
+
+    # No GeoJSON result
+    assert data["result"] is None
+
+    # Metrics returned
+    assert "air_quality" in data["metrics"]
+    assert "aqi" in data["metrics"]["air_quality"]
+    assert "temperature" in data["metrics"]
+    assert "vegetation" in data["metrics"]
+
+    # Tables returned
+    assert len(data["tables"]) == 5
+    assert data["tables"][0]["metric"] == "Air Quality Index"
+    assert "unit" in data["tables"][0]
+
+    # Warnings present
+    assert len(data["warnings"]) > 0
+
+
+def test_env_check_manifest_declares_secrets(client):
+    """Test that the manifest declares required API secrets."""
+    r = client.get("/api/v1/tools/env-check")
+    assert r.status_code == 200
+    manifest = r.json()
+
+    assert "GOOGLE_MAPS_KEY" in manifest["requirements"]["secrets"]
+    assert "google_air_quality" in manifest["requirements"]["apis"]
+    assert manifest["output_hints"]["suggested_display"] == "dashboard"
+    assert manifest["geometry_input"]["required"] is False
+    assert "click" in manifest["geometry_input"]["draw_modes"]
+
+
+def test_run_env_check_from_geometry(client):
+    """Test that env-check accepts a clicked point instead of lat/lng params."""
+    r = client.post(
+        "/api/v1/tools/env-check/run",
+        json={
+            "geojson": {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [-118.24, 34.05]},
+                        "properties": {},
+                    }
+                ],
+            },
+            "parameters": {},
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["metrics"]["location"]["latitude"] == 34.05
+    assert data["metrics"]["location"]["longitude"] == -118.24
 
 
 def test_run_missing_params(client):

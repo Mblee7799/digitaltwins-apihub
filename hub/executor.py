@@ -24,17 +24,21 @@ def run_tool(tool: GeoHubTool, input: ToolInput) -> ExecutionEnvelope:
     output = tool.execute(input)
     elapsed_ms = int((time.perf_counter() - start) * 1000)
 
+    feature_count = len(output.result.features) if output.result else 0
+
     return ExecutionEnvelope(
         execution=ExecutionInfo(
             tool_id=manifest.id,
             tool_version=manifest.version,
             execution_id=f"exec_{uuid.uuid4().hex[:12]}",
             execution_time_ms=elapsed_ms,
-            feature_count=len(output.result.features),
+            feature_count=feature_count,
             crs=manifest.output_crs,
             timestamp=datetime.now(timezone.utc).isoformat(),
             status="success",
         ),
         result=output.result,
+        metrics=output.metrics,
+        tables=output.tables,
         warnings=output.warnings,
     )

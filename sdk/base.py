@@ -42,9 +42,13 @@ class GeoHubTool(ABC):
         """Optional input validation. Return list of error messages."""
         errors = []
         manifest = self.manifest()
+        has_geojson = input.geojson is not None and bool(input.geojson.features)
 
         for param in manifest.parameters:
             if param.required and param.name not in input.parameters:
+                # Coordinate params can be satisfied by geojson input instead
+                if param.widget == "coordinates" and has_geojson:
+                    continue
                 errors.append(f"Missing required parameter: {param.name}")
 
         return errors

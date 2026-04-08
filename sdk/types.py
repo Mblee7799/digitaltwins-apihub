@@ -32,20 +32,26 @@ class ParameterSchema(BaseModel):
     """Describes a single tool parameter and how to render it."""
 
     name: str
-    type: str  # "number", "string", "boolean"
+    type: str  # "number", "string", "boolean", "coordinates", "file"
     description: str
     required: bool = True
     default: Any = None
 
     # UI hints
-    widget: str = "auto"  # "slider", "textbox", "checkbox", "dropdown", "color", "auto"
+    widget: str = "auto"
+    # Widgets: "slider", "textbox", "checkbox", "dropdown", "color",
+    #          "coordinates" (map click lat/lng picker),
+    #          "address" (geocoded text input),
+    #          "file" (file upload — csv, geojson, raster),
+    #          "auto" (infer from type)
     min: float | None = None
     max: float | None = None
     step: float | None = None
     enum: list[str] | None = None
     placeholder: str | None = None
-    unit: str | None = None  # "meters", "degrees", "km"
+    unit: str | None = None  # "meters", "degrees", "km", "celsius", "aqi"
     group: str | None = None  # group related params in UI sections
+    accept: list[str] | None = None  # file types for "file" widget: [".csv", ".geojson"]
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +63,7 @@ class GeometryInput(BaseModel):
 
     required: bool = True
     accept: list[GeometryType] = [GeometryType.ANY]
-    draw_modes: list[str] = []  # "point", "polygon", "rectangle", "line"
+    draw_modes: list[str] = []  # "point", "polygon", "rectangle", "line", "click"
     max_features: int | None = None
     description: str = ""
 
@@ -70,7 +76,10 @@ class OutputHints(BaseModel):
     """Suggests how results should be visualized."""
 
     geometry_type: list[GeometryType] = [GeometryType.ANY]
-    suggested_display: str = "auto"  # "pins", "choropleth", "heatmap", "lines", "clusters"
+    suggested_display: str = "auto"
+    # Display modes: "pins", "choropleth", "heatmap", "lines", "clusters",
+    #                "table" (metrics only, no map), "dashboard" (metrics + map),
+    #                "auto"
     label_property: str | None = None
     color_property: str | None = None
     sort_property: str | None = None
@@ -95,8 +104,8 @@ class ExecutionConfig(BaseModel):
 class ExternalRequirements(BaseModel):
     """Declares external dependencies."""
 
-    apis: list[str] = []  # ["openmeteo", "census.gov"]
-    secrets: list[str] = []  # ["CENSUS_API_KEY"] — consumer must provide
+    apis: list[str] = []  # ["nasa_power", "google_air_quality", "usgs_water"]
+    secrets: list[str] = []  # ["GOOGLE_MAPS_KEY", "NASA_API_KEY"]
 
 
 # ---------------------------------------------------------------------------
@@ -142,12 +151,16 @@ class ToolInput(BaseModel):
 
     geojson: FeatureCollection | None = None
     parameters: dict[str, Any] = {}
+    secrets: dict[str, str] = {}  # runtime API keys — consumer provides, never logged
+    files: dict[str, str] = {}  # parameter_name → file path or URL
 
 
 class ToolOutput(BaseModel):
-    """Standard output — pure GeoJSON result with optional warnings."""
+    """Standard output — features and/or metrics."""
 
-    result: FeatureCollection
+    result: FeatureCollection | None = None  # optional — metrics-only tools skip this
+    metrics: dict[str, Any] = {}  # scalar outputs: {"aqi": 78, "temperature_f": 86}
+    tables: list[dict[str, Any]] = []  # tabular rows: [{"year": 2025, "temp": 86}, ...]
     warnings: list[str] = []
 
 
@@ -169,8 +182,10 @@ class ExecutionInfo(BaseModel):
 
 
 class ExecutionEnvelope(BaseModel):
-    """API response: execution telemetry + pure GeoJSON result."""
+    """API response: execution telemetry + GeoJSON result + metrics + tables."""
 
     execution: ExecutionInfo
-    result: FeatureCollection
+    result: FeatureCollection | None = None
+    metrics: dict[str, Any] = {}
+    tables: list[dict[str, Any]] = []
     warnings: list[str] = []
